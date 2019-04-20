@@ -3,7 +3,6 @@ package mqtt
 import (
 	"context"
 	"encoding/json"
-	"strconv"
 	"time"
 
 	"github.com/eclipse/paho.mqtt.golang"
@@ -46,12 +45,12 @@ func (*Factory) New(config *trigger.Config) (trigger.Trigger, error) {
 		return nil, err
 	}
 
-	return &MqttTrigger{settings: s, logger: ctx.Logger()}, nil
+	return &MqttTrigger{settings: s}, nil
 }
 
 // Initialize implements trigger.Initializable.Initialize
 func (t *MqttTrigger) Initialize(ctx trigger.InitContext) error {
-
+	t.logger = ctx.Logger()
 	for _, handler := range ctx.GetHandlers() {
 		options := initClientOption(t.settings)
 
@@ -60,14 +59,36 @@ func (t *MqttTrigger) Initialize(ctx trigger.InitContext) error {
 		if err != nil {
 			return err
 		}
+		options.SetClientID(t.settings.Id)
 		options.SetDefaultPublishHandler(func(client mqtt.Client, msg mqtt.Message) {
 			topic := msg.Topic()
-
+			qos := msg.Qos()
 			payload := string(msg.Payload())
-			t.RunHandler(handler, payload)
+			reply := &Reply{}
+			result, err := runHandler(handler, payload)
+
+			if err != nil {
+
+			}
+			err = reply.FromMap(result)
+
+			if reply != nil {
+				dataJson, err := json.Marshal(reply.Data)
+				if err != nil {
+					return
+				}
+				token := client.Publish(topic, qos, false, string(dataJson))
+				sent := token.WaitTimeout(5000 * time.Millisecond)
+				if !sent {
+					// Timeout occurred
+					//log.Errorf("Timeout occurred while trying to publish to topic '%s'", topic)
+					return
+				}
+			}
 
 		})
 
+		options.SetKeepAlive(2 * time.Second)
 		//Creating new client for each handler because each client struct expects one publish handler
 		client := mqtt.NewClient(options)
 
@@ -108,7 +129,7 @@ func (t *MqttTrigger) Start() error {
 			t.logger.Errorf("Error subscribing to topic %s: %s", handler.topic, token.Error())
 			return token.Error()
 		} else {
-			t.logger.Debugf("Subscribed to topic: %s, will trigger handler: %s", handler.topic, handler)
+			t.logger.Debugf("Subscribed to topic: %s", handler.topic)
 		}
 	}
 
@@ -131,60 +152,16 @@ func (t *MqttTrigger) Stop() error {
 }
 
 // RunHandler runs the handler and associated action
-func (t *MqttTrigger) RunHandler(handler trigger.Handler, payload string) {
+func runHandler(handler trigger.Handler, payload string) (map[string]interface{}, error) {
 
-	trgData := make(map[string]interface{})
-	trgData["message"] = payload
+	out := &Output{}
+	out.Message = payload
 
-	results, err := handler.Handle(context.Background(), trgData)
+	results, err := handler.Handle(context.Background(), out)
 
 	if err != nil {
-		t.logger.Error("Error starting action: ", err.Error())
+		return nil, err
 	}
 
-	t.logger.Debugf("Ran Handler: [%s]", handler)
-
-	var replyData interface{}
-
-	if len(results) != 0 {
-		dataAttr, ok := results["data"]
-		if ok {
-			replyData = dataAttr.Value()
-		}
-	}
-
-	if replyData != nil {
-		dataJson, err := json.Marshal(replyData)
-		if err != nil {
-			t.logger.Error(err)
-		} else {
-			replyTo := handler.GetStringSetting("topic")
-			if replyTo != "" {
-				t.publishMessage(replyTo, string(dataJson))
-			}
-		}
-	}
-}
-
-func (t *MqttTrigger) publishMessage(topic string, message string) {
-
-	t.logger.Debug("ReplyTo topic: ", topic)
-	t.logger.Debug("Publishing message: ", message)
-
-	qos, err := strconv.Atoi(t.config.GetSetting("qos"))
-	if err != nil {
-		t.logger.Error("Error converting \"qos\" to an integer ", err.Error())
-		return
-	}
-	if len(topic) == 0 {
-		t.logger.Warn("Invalid empty topic to publish to")
-		return
-	}
-	token := t.client.Publish(topic, byte(qos), false, message)
-	sent := token.WaitTimeout(5000 * time.Millisecond)
-	if !sent {
-		// Timeout occurred
-		log.Errorf("Timeout occurred while trying to publish to topic '%s'", topic)
-		return
-	}
+	return results, nil
 }
