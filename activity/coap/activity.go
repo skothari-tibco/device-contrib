@@ -37,7 +37,7 @@ func New(ctx activity.InitContext) (activity.Activity, error) {
 
 	req := coap.Message{
 		Type:      toCoapType(s.Type),
-		Code:      toCoapCode(s.Method),
+		Code:      toCoapCode(s.Code),
 		MessageID: uint16(s.MessageId),
 	}
 
@@ -91,10 +91,10 @@ func (act *CoAPActivity) Eval(ctx activity.Context) (done bool, err error) {
 
 		queryStr := qp.Encode()
 		act.req.SetOption(coap.URIQuery, queryStr)
-		log.Debugf("CoAP Message: [%s] %s?%s\n", act.settings.Method, act.coapURL.Path, queryStr)
+		log.Debugf("CoAP Message: [%s] %s?%s\n", act.settings.Code, act.coapURL.Path, queryStr)
 
 	} else {
-		log.Debugf("CoAP Message: [%s] %s\n", act.settings.Method, act.coapURL.Path)
+		log.Debugf("CoAP Message: [%s] %s\n", act.settings.Code, act.coapURL.Path)
 	}
 
 	c, err := coap.Dial("udp", act.coapURL.Host)

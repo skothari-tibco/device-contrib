@@ -5,7 +5,7 @@ import (
 )
 
 type Settings struct {
-	Method    string            `md:"method,required"`
+	Code      string            `md:"code,required"`
 	URI       string            `md:"uri,required"`
 	Type      string            `md:"type"`
 	MessageId int               `md:"messageId"`

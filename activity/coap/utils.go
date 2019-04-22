@@ -7,6 +7,11 @@ import (
 )
 
 const (
+	methodGET    = "GET"
+	methodPOST   = "POST"
+	methodPUT    = "PUT"
+	methodDELETE = "DELETE"
+
 	typeCON = "CONFIRMABLE"
 	typeNON = "NONCONFIRMABLE"
 	typeACK = "ACKNOWLEDGEMENT"
