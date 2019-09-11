@@ -49,8 +49,6 @@ func TestRestTrigger_Initialize(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, trg)
 	err = trg.Start()
-	for {
 
-	}
-
+	assert.Nil(t, err)
 }

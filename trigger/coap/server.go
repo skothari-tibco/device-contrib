@@ -49,7 +49,7 @@ func (s *Server) Start() error {
 	if err != nil {
 		return err
 	}
-	log.RootLogger().Infof("Starting listener at port [$s]", addr)
+	log.RootLogger().Infof("Starting listener at port %v", addr)
 	s.listener, err = net.ListenUDP(s.n, uaddr)
 	if err != nil {
 		return err

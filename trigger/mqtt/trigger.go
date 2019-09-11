@@ -115,7 +115,10 @@ func initClientOption(settings *Settings) *mqtt.ClientOptions {
 	}
 	opts.SetCleanSession(b)
 	if storeType := settings.Store; storeType != ":memory:" {
-		opts.SetStore(mqtt.NewFileStore(settings.Store))
+		if settings.Store !=  ""{
+			opts.SetStore(mqtt.NewFileStore(settings.Store))
+		}
+		
 	}
 	return opts
 }

@@ -20,19 +20,24 @@ func New(ctx activity.InitContext) (activity.Activity, error) {
 		return nil, err
 	}
 
-	options := initClientOption(settings)
-	if err != nil {
-		//ctx.Logger().Errorf("Kafka parameters initialization got error: [%s]", err.Error())
-		return nil, err
+	if !settings.SharedConnection {
+		options := initClientOption(settings)
+		if err != nil {
+			//ctx.Logger().Errorf("Kafka parameters initialization got error: [%s]", err.Error())
+			return nil, err
+		}
+
+		mqttClient := mqtt.NewClient(options)
+
+		if token := mqttClient.Connect(); token.Wait() && token.Error() != nil {
+			return nil, token.Error()
+		}
+		act := &MqttActivity{settings: settings, client: mqttClient}
+		return act, nil
 	}
+	
 
-	mqttClient := mqtt.NewClient(options)
-
-	if token := mqttClient.Connect(); token.Wait() && token.Error() != nil {
-		return nil, token.Error()
-	}
-
-	act := &MqttActivity{settings: settings, client: mqttClient}
+	act := &MqttActivity{settings: settings}
 	return act, nil
 }
 
@@ -54,15 +59,27 @@ func (a *MqttActivity) Eval(ctx activity.Context) (done bool, err error) {
 	if err != nil {
 		return true, err
 	}
+	if input.Connection != nil {
+		ctx.Logger().Info("Using Shared Connection to publish..", input.Message)
+		if token := input.Connection.GetConnection().(mqtt.Client).Publish(input.Topic, byte(input.Qos), true, input.Message); token.Wait() && token.Error() != nil {
+			ctx.Logger().Info("Error in publishing..")
+			return true, token.Error()
+		}
 
-	if token := a.client.Publish(input.Topic, byte(input.Qos), true, input.Message); token.Wait() && token.Error() != nil {
-		ctx.Logger().Info("Error in publishing..")
-		return true, token.Error()
+	}else {
+		if token := a.client.Publish(input.Topic, byte(input.Qos), true, input.Message); token.Wait() && token.Error() != nil {
+			ctx.Logger().Info("Error in publishing..")
+			return true, token.Error()
+		}
+		a.client.Disconnect(a.settings.Close)
+
 	}
-	ctx.Logger().Info("Message Published publishing..")
+	
+	ctx.Logger().Info("Message Published ..")
 
 	return true, nil
 }
+
 func initClientOption(settings *Settings) *mqtt.ClientOptions {
 
 	opts := mqtt.NewClientOptions()
